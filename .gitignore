@@ -28,11 +28,6 @@ wheels/
 
 runs/
 
-# Datasets
-datasets/
-data/
-*.pt  # Trained model weights (unless you want to track a specific initial weights file, like yolov8n.pt)
-*.yaml # Data configuration files (optional, often useful to keep in git)
 
 # Environment variables
 .env
