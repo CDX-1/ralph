@@ -42,12 +42,34 @@ pip install -r requirements.txt
 ELEVENLABS_KEY=your_api_key_here
 ```
 
+## Project Structure
+
+```
+ralph/
+├── src/
+│   ├── main.py           # Main application entry point
+│   ├── config.py         # Configuration constants
+│   ├── camera.py         # Camera detection and setup
+│   ├── audio.py          # Audio playback management
+│   ├── spatial.py        # Spatial analysis and decision logic
+│   ├── midas_depth.py    # MiDaS depth estimation
+│   └── __init__.py       # Package initialization
+├── voice/
+│   ├── voice.py          # ElevenLabs TTS generator
+│   └── commands/         # Generated audio files
+├── models/               # YOLO model files
+├── data/                 # Training datasets
+├── run.py                # Application launcher
+├── requirements.txt      # Python dependencies
+└── README.md
+```
+
 ## Usage
 
 ### Running the Main Detection System
 
 ```bash
-python main.py
+python run.py
 ```
 
 The system will:
