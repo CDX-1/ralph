@@ -284,21 +284,24 @@ def main():
 
         fps = 1.0 / max(time.time() - t0, 1e-6)
         
-        # Play audio based on action (with cooldown)
+        # Play audio based on action
         current_time = time.time()
-        if audio_enabled and action != last_action and (current_time - last_audio_time) > audio_cooldown:
+        
+        if audio_enabled:
+            # For STOP action, play continuously (repeat when finished)
             if action == "STOP" and 'STOP' in audio_files:
                 if not pygame.mixer.music.get_busy():
                     pygame.mixer.music.load(audio_files['STOP'])
                     pygame.mixer.music.play()
-                    last_audio_time = current_time
                     print(f"🔊 Playing: STOP")
+            # For other warnings, use cooldown to avoid spam
             elif action in ["WARN", "STEER_LEFT", "STEER_RIGHT"] and 'OBSTACLE' in audio_files:
-                if not pygame.mixer.music.get_busy():
-                    pygame.mixer.music.load(audio_files['OBSTACLE'])
-                    pygame.mixer.music.play()
-                    last_audio_time = current_time
-                    print(f"🔊 Playing: OBSTACLE DETECTED")
+                if action != last_action or (current_time - last_audio_time) > audio_cooldown:
+                    if not pygame.mixer.music.get_busy():
+                        pygame.mixer.music.load(audio_files['OBSTACLE'])
+                        pygame.mixer.music.play()
+                        last_audio_time = current_time
+                        print(f"🔊 Playing: OBSTACLE DETECTED")
         
         last_action = action
 
