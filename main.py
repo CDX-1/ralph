@@ -11,6 +11,7 @@
 #   pip install --upgrade pip
 #   pip install ultralytics opencv-python numpy
 
+# Import dependencies
 import time
 import cv2
 import numpy as np
@@ -20,7 +21,7 @@ from ultralytics import YOLO
 from colorama import Fore
 
 # ----------------------------
-# Config (tune for your demo)
+# Configuration
 # ----------------------------
 # Auto-detect available cameras and use the second one if available
 def find_cameras():
