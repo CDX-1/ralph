@@ -21,7 +21,40 @@ from ultralytics import YOLO
 # ----------------------------
 # Config (tune for your demo)
 # ----------------------------
-CAM_INDEX = 0
+# Auto-detect available cameras and use the second one if available
+def find_cameras():
+    available_cameras = []
+    # Suppress OpenCV errors during camera detection
+    cv2.setLogLevel(0)  # Suppress error messages
+    
+    for i in range(3):  # Check first 3 camera indices (reduced to avoid errors)
+        try:
+            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)  # Use DirectShow on Windows for faster detection
+            if cap.isOpened():
+                # Verify camera works by reading a frame
+                ret, _ = cap.read()
+                if ret:
+                    available_cameras.append(i)
+            cap.release()
+        except:
+            pass
+    
+    # Re-enable logging
+    cv2.setLogLevel(3)
+    return available_cameras
+
+# Find and use the second available camera (or first if only one exists)
+print("Detecting cameras...")
+available_cams = find_cameras()
+if len(available_cams) > 1:
+    CAM_INDEX = available_cams[1]  # Use second camera
+    print(f"✓ Using camera index {CAM_INDEX} (found cameras: {available_cams})")
+elif len(available_cams) > 0:
+    CAM_INDEX = available_cams[0]
+    print(f"✓ Only one camera found at index {CAM_INDEX}")
+else:
+    CAM_INDEX = 0
+    print("⚠ No cameras detected, defaulting to index 0")
 
 # Lower resolution = faster
 FRAME_W, FRAME_H = 640, 480
