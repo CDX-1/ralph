@@ -1,9 +1,9 @@
-![Banner](https://i.imgur.com/3dNTFO3.png)
+<img src="https://i.imgur.com/Nlzv3PZ.png" width="300"> 
 
+# Ralph
 Real-time AI-powered obstacle detection and navigation assistance system using computer vision and voice feedback.
 
 ## Overview
-
 Ralph is an intelligent navigation assistant that uses YOLOv8-nano for real-time object detection and spatial analysis. The system detects obstacles, analyzes their position and proximity, and provides voice-guided navigation commands to help users safely navigate their environment.
 
 ## Features
