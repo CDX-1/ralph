@@ -217,6 +217,7 @@ def main():
     audio_files = {
         'STOP': os.path.join(audio_dir, 'stop.mp3'),
         'OBSTACLE': os.path.join(audio_dir, 'obstacle_detected.mp3'),
+        'GO': os.path.join(audio_dir, 'go.mp3'),
     }
     
     # Check audio files
@@ -293,7 +294,14 @@ def main():
                 if not pygame.mixer.music.get_busy():
                     pygame.mixer.music.load(audio_files['STOP'])
                     pygame.mixer.music.play()
-                    print(f"🔊 Playing: STOP")
+                    print(f"STOP")
+            # For GO action, play once when action changes to GO
+            elif action == "GO" and 'GO' in audio_files:
+                if action != last_action:
+                    if not pygame.mixer.music.get_busy():
+                        pygame.mixer.music.load(audio_files['GO'])
+                        pygame.mixer.music.play()
+                        print(f"GO - Safe to proceed")
             # For other warnings, use cooldown to avoid spam
             elif action in ["WARN", "STEER_LEFT", "STEER_RIGHT"] and 'OBSTACLE' in audio_files:
                 if action != last_action or (current_time - last_audio_time) > audio_cooldown:
@@ -301,7 +309,7 @@ def main():
                         pygame.mixer.music.load(audio_files['OBSTACLE'])
                         pygame.mixer.music.play()
                         last_audio_time = current_time
-                        print(f"🔊 Playing: OBSTACLE DETECTED")
+                        print(f"OBSTACLE DETECTED")
         
         last_action = action
 
