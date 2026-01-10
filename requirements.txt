@@ -1,3 +1,6 @@
 ultralytics>=8.0.0
 opencv-python>=4.8.0
 torch>=2.0.0
+elevenlabs>=1.0.0
+python-dotenv>=1.0.0
+pygame>=2.5.0

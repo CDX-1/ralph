@@ -14,6 +14,8 @@
 import time
 import cv2
 import numpy as np
+import pygame
+import os
 from ultralytics import YOLO
 
 # ----------------------------
@@ -207,7 +209,24 @@ def draw_overlays(frame, overlays, action, reason, fps):
 
 
 def main():
-    model = YOLO("yolov8n.pt")  # downloads on first run
+    # Initialize pygame mixer for audio
+    pygame.mixer.init()
+    
+    # Audio paths (relative to project root)
+    audio_dir = os.path.join('voice', 'commands')
+    audio_files = {
+        'STOP': os.path.join(audio_dir, 'stop.mp3'),
+        'OBSTACLE': os.path.join(audio_dir, 'obstacle_detected.mp3'),
+    }
+    
+    # Check audio files
+    audio_enabled = all(os.path.exists(f) for f in audio_files.values())
+    if audio_enabled:
+        print("✓ Audio enabled")
+    else:
+        print("⚠ Some audio files missing - running without audio")
+    
+    model = YOLO("models/yolov8n.pt")  # use models directory
 
     cap = cv2.VideoCapture(CAM_INDEX)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
@@ -215,6 +234,9 @@ def main():
 
     prev_area_by_key = {}
     frame_count = 0
+    last_action = None
+    last_audio_time = 0
+    audio_cooldown = 3.0  # seconds between audio alerts
 
     last_results = None  # cache results when skipping frames
 
@@ -261,6 +283,24 @@ def main():
             )
 
         fps = 1.0 / max(time.time() - t0, 1e-6)
+        
+        # Play audio based on action (with cooldown)
+        current_time = time.time()
+        if audio_enabled and action != last_action and (current_time - last_audio_time) > audio_cooldown:
+            if action == "STOP" and 'STOP' in audio_files:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.load(audio_files['STOP'])
+                    pygame.mixer.music.play()
+                    last_audio_time = current_time
+                    print(f"🔊 Playing: STOP")
+            elif action in ["WARN", "STEER_LEFT", "STEER_RIGHT"] and 'OBSTACLE' in audio_files:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.load(audio_files['OBSTACLE'])
+                    pygame.mixer.music.play()
+                    last_audio_time = current_time
+                    print(f"🔊 Playing: OBSTACLE DETECTED")
+        
+        last_action = action
 
         frame = draw_overlays(frame, overlays, action, reason, fps)
         cv2.imshow("Spatial Analysis (YOLOv8)", frame)
