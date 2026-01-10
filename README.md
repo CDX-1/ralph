@@ -1,4 +1,4 @@
-<img src="https://i.imgur.com/Nlzv3PZ.png" width="300"> 
+<img src="https://i.imgur.com/PNIgTnm.png" width="300"> 
 
 # Ralph
 Real-time AI-powered obstacle detection and navigation assistance system using computer vision and voice feedback.
