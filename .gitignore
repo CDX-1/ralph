@@ -1,0 +1,41 @@
+# Standard Python ignores
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Byte-code files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+
+# Distribution / packaging
+.Python
+build/
+dist/
+wheels/
+*.egg-info/
+*.po
+*.mo
+
+# Editors/IDE
+.idea/  # For PyCharm/IntelliJ
+.vscode/ # For VS Code (optional, as config might be useful to share)
+*.swp
+*~
+.DS_Store # macOS files
+
+runs/
+
+# Datasets
+datasets/
+data/
+*.pt  # Trained model weights (unless you want to track a specific initial weights file, like yolov8n.pt)
+*.yaml # Data configuration files (optional, often useful to keep in git)
+
+# Environment variables
+.env
+
+# Logs
+logs/
