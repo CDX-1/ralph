@@ -17,6 +17,7 @@ import numpy as np
 import pygame
 import os
 from ultralytics import YOLO
+from colorama import Fore
 
 # ----------------------------
 # Config (tune for your demo)
@@ -51,10 +52,10 @@ if len(available_cams) > 1:
     print(f"✓ Using camera index {CAM_INDEX} (found cameras: {available_cams})")
 elif len(available_cams) > 0:
     CAM_INDEX = available_cams[0]
-    print(f"✓ Only one camera found at index {CAM_INDEX}")
+    print(Fore.GREEN + f" Only one camera found at index {CAM_INDEX}")
 else:
     CAM_INDEX = 0
-    print("⚠ No cameras detected, defaulting to index 0")
+    print(Fore.RED + "No cameras detected, defaulting to index 0")
 
 # Lower resolution = faster
 FRAME_W, FRAME_H = 640, 480
@@ -65,11 +66,48 @@ DETECT_EVERY_N_FRAMES = 1
 # Only consider detections above this confidence
 CONF_THRESH = 0.45
 
-# Classes to treat as "obstacles".
-# COCO class IDs (common):
-# 0=person, 2=car, 3=motorcycle, 5=bus, 7=truck, 1=bicycle, 56=chair, etc.
-# For hackathon indoors: person + chair can be enough
-OBSTACLE_CLASSES = {0, 1, 2, 3, 5, 7, 56}  # tweak as you like
+# COCO dataset class IDs - only include relevant outdoor/navigation obstacles
+# Excluded: animals, food, kitchen items, sports equipment, electronics, etc.
+RELEVANT_CLASSES = {
+    # People
+    0: 'person',
+    
+    # Vehicles
+    1: 'bicycle',
+    2: 'car',
+    3: 'motorcycle',
+    5: 'bus',
+    7: 'truck',
+    
+    # Street furniture & infrastructure
+    9: 'traffic light',
+    10: 'fire hydrant',
+    11: 'stop sign',
+    12: 'parking meter',
+    13: 'bench',
+    
+    # Common outdoor obstacles
+    14: 'bird',  # birds can be obstacles
+    56: 'chair',
+    57: 'couch',
+    58: 'potted plant',
+    60: 'dining table',
+    62: 'tv',
+    63: 'laptop',
+    65: 'bed',
+    66: 'dining table',
+    70: 'toilet',
+    72: 'tv',
+    73: 'laptop',
+    74: 'mouse',
+    75: 'remote',
+    76: 'keyboard',
+    77: 'cell phone',
+}
+
+# Classes to treat as critical "obstacles" requiring immediate action
+# Subset of RELEVANT_CLASSES that are high priority
+OBSTACLE_CLASSES = {0, 1, 2, 3, 5, 7, 9, 11, 13, 56, 57, 58, 60}  # people, vehicles, furniture
 
 # Corridor definitions (fractions of width)
 LEFT_MAX = 1/3
@@ -251,6 +289,8 @@ def main():
         'STOP': os.path.join(audio_dir, 'stop.mp3'),
         'OBSTACLE': os.path.join(audio_dir, 'obstacle_detected.mp3'),
         'GO': os.path.join(audio_dir, 'go.mp3'),
+        'TURN_LEFT': os.path.join(audio_dir, 'turn_left.mp3'),
+        'TURN_RIGHT': os.path.join(audio_dir, 'turn_right.mp3'),
     }
     
     # Check audio files
@@ -288,7 +328,8 @@ def main():
         do_detect = (frame_count % DETECT_EVERY_N_FRAMES == 0)
 
         if do_detect:
-            results = model(frame, verbose=False)[0]
+            # Only detect relevant classes - more efficient than filtering after
+            results = model(frame, verbose=False, classes=list(RELEVANT_CLASSES.keys()))[0]
             last_results = results
         else:
             results = last_results
@@ -304,6 +345,10 @@ def main():
                 if conf < CONF_THRESH:
                     continue
                 cls = int(b.cls[0])
+                
+                # Classes already filtered at detection time via model(classes=...)
+                # No need to filter again here
+                
                 x1, y1, x2, y2 = b.xyxy[0].cpu().numpy().tolist()
 
                 dets.append({
@@ -318,25 +363,68 @@ def main():
 
         fps = 1.0 / max(time.time() - t0, 1e-6)
         
+        # Calculate distance to object directly ahead
+        distance_ahead = None  # Distance in meters
+        distance_critical = False  # Flag for critical distance
+        
+        if overlays:
+            # Find object in center (directly ahead)
+            center_objects = [o for o in overlays if o['region'] == 'CENTER']
+            if center_objects:
+                # Use the largest object in center as the main obstacle
+                main_object = max(center_objects, key=lambda x: x['area_norm'])
+                area_norm = main_object['area_norm']
+                
+                # Estimate distance: larger area = closer (inverse relationship)
+                # Calibration: area 0.1 ≈ 1m, area 0.05 ≈ 2m, area 0.01 ≈ 10m
+                distance_ahead = max((0.3, 10.0 * (0.05 / max(area_norm, 0.001))) / 2)
+                
+                # Check if within critical distance (1 meter)
+                if distance_ahead <= 1.0:
+                    distance_critical = True
+                
+                # Print distance info every 30 frames (reduce console spam)
+                if frame_count % 30 == 0:
+                    status = "CRITICAL!" if distance_critical else "OK"
+                    print(f"Distance ahead: {distance_ahead:.2f}m [{status}] (area: {area_norm:.4f})")
+        
+
         # Play audio based on action
         current_time = time.time()
         
         if audio_enabled:
+            # Priority 1: If distance is within 1 meter, override with STOP
+            if distance_critical and 'STOP' in audio_files:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.load(audio_files['STOP'])
+                    pygame.mixer.music.play()
+                    print(f"STOP - Object within 1 meter!")
             # For STOP action, play continuously (repeat when finished)
-            if action == "STOP" and 'STOP' in audio_files:
+            elif action == "STOP" and 'STOP' in audio_files:
                 if not pygame.mixer.music.get_busy():
                     pygame.mixer.music.load(audio_files['STOP'])
                     pygame.mixer.music.play()
                     print(f"STOP")
-            # For GO action, play once when action changes to GO
+            # For GO action, play continuously (repeat when finished)
             elif action == "GO" and 'GO' in audio_files:
-                if action != last_action:
-                    if not pygame.mixer.music.get_busy():
-                        pygame.mixer.music.load(audio_files['GO'])
-                        pygame.mixer.music.play()
-                        print(f"GO - Safe to proceed")
-            # For other warnings, use cooldown to avoid spam
-            elif action in ["WARN", "STEER_LEFT", "STEER_RIGHT"] and 'OBSTACLE' in audio_files:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.load(audio_files['GO'])
+                    pygame.mixer.music.play()
+                    print(f"GO - Safe to proceed")
+            # For STEER_LEFT action, play turn_left continuously
+            elif action == "STEER_LEFT" and 'TURN_LEFT' in audio_files:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.load(audio_files['TURN_LEFT'])
+                    pygame.mixer.music.play()
+                    print(f"TURN LEFT")
+            # For STEER_RIGHT action, play turn_right continuously
+            elif action == "STEER_RIGHT" and 'TURN_RIGHT' in audio_files:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.load(audio_files['TURN_RIGHT'])
+                    pygame.mixer.music.play()
+                    print(f"TURN RIGHT")
+            # For WARN action, use obstacle detected with cooldown
+            elif action == "WARN" and 'OBSTACLE' in audio_files:
                 if action != last_action or (current_time - last_audio_time) > audio_cooldown:
                     if not pygame.mixer.music.get_busy():
                         pygame.mixer.music.load(audio_files['OBSTACLE'])
