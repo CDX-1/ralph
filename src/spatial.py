@@ -1,5 +1,5 @@
 import cv2
-from .config import LEFT_MAX, RIGHT_MIN, AREA_WARN, AREA_STOP, AREA_GROWTH_APPROACH, OBSTACLE_CLASSES
+from config import LEFT_MAX, RIGHT_MIN, AREA_WARN, AREA_STOP, AREA_GROWTH_APPROACH, OBSTACLE_CLASSES
 
 def decide_action(frame_w: int, frame_h: int, dets: list, prev_area_by_key: dict):
     frame_area = float(frame_w * frame_h)

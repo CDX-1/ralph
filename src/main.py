@@ -1,13 +1,17 @@
 import time
 import cv2
 import numpy as np
+import sys
+import os
 from ultralytics import YOLO
 
-from .config import *
-from .camera import get_camera_index
-from .audio import AudioManager
-from .spatial import decide_action, draw_overlays
-from .midas_depth import MidasDepth
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from config import *
+from camera import get_camera_index
+from audio import AudioManager
+from spatial import decide_action, draw_overlays
+from midas_depth import MidasDepth
 
 
 def main():
