@@ -1,4 +1,4 @@
-# Ralph
+![Banner](https://i.imgur.com/3dNTFO3.png)
 
 Real-time AI-powered obstacle detection and navigation assistance system using computer vision and voice feedback.
 
