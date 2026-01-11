@@ -52,6 +52,11 @@ def main():
         motors = None
 
     next_frame_time = time.time()
+    bucket_start = time.time()
+    action_stats = {}
+    last_selected_action = None
+    last_selected_turn = 0.0
+    last_selected_conf = 0.0
     try:
         while True:
             ok, frame = cap.read()
@@ -66,27 +71,59 @@ def main():
                 break
             raw = line.strip()
             print(raw)
-            action_data = None
             try:
                 action_data = json.loads(raw)
             except json.JSONDecodeError:
                 action_data = None
 
-            if action_data and motors is not None:
+            if action_data:
                 action = action_data.get("action")
                 turn = float(action_data.get("turn", 0.0))
                 confidence = float(action_data.get("confidence", 0.0))
-                speed = max(0.0, min(1.0, abs(turn)))
-                print(f"action={action} turn={turn:+.2f} conf={confidence:.2f} speed={speed:.2f}")
+                if action:
+                    stats = action_stats.setdefault(action, {"count": 0, "sum_turn": 0.0, "sum_conf": 0.0})
+                    stats["count"] += 1
+                    stats["sum_turn"] += turn
+                    stats["sum_conf"] += confidence
 
-                if action == "STOP":
-                    motors.stop()
-                elif action == "FORWARD":
-                    motors.forward(speed=max(0.3, speed))
-                elif action == "STEER_LEFT":
-                    motors.turn_left(speed=max(0.3, speed))
-                elif action == "STEER_RIGHT":
-                    motors.turn_right(speed=max(0.3, speed))
+            now = time.time()
+            if now - bucket_start >= 1.0 and action_stats:
+                best_action = None
+                best_count = -1
+                best_conf = -1.0
+                best_turn = 0.0
+                for action, stats in action_stats.items():
+                    count = stats["count"]
+                    avg_conf = stats["sum_conf"] / count
+                    avg_turn = stats["sum_turn"] / count
+                    if count > best_count or (count == best_count and avg_conf > best_conf):
+                        best_action = action
+                        best_count = count
+                        best_conf = avg_conf
+                        best_turn = avg_turn
+
+                last_selected_action = best_action
+                last_selected_turn = best_turn
+                last_selected_conf = best_conf
+
+                print(
+                    f"selected_action={best_action} count={best_count} "
+                    f"avg_turn={best_turn:+.2f} avg_conf={best_conf:.2f}"
+                )
+
+                if motors is not None and best_action:
+                    speed = max(0.0, min(1.0, abs(best_turn)))
+                    if best_action == "STOP":
+                        motors.stop()
+                    elif best_action == "FORWARD":
+                        motors.forward(speed=max(0.3, speed))
+                    elif best_action == "STEER_LEFT":
+                        motors.turn_left(speed=max(0.3, speed))
+                    elif best_action == "STEER_RIGHT":
+                        motors.turn_right(speed=max(0.3, speed))
+
+                action_stats = {}
+                bucket_start = now
 
             if args.fps > 0:
                 next_frame_time += 1.0 / args.fps
