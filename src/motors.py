@@ -6,7 +6,7 @@ except Exception:
 
 import time
 
-a_multi = 1.5
+a_multi = 1.0
 b_multi = 2.0
 turn_scale = 0.4
 
