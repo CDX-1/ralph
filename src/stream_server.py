@@ -11,6 +11,8 @@ from ultralytics import YOLO
 from vision import (
     compute_turn_and_confidence,
     decide_action,
+    middle_blocked,
+    middle_clear,
     load_floor_calibration,
     pixel_to_world,
     detect_floor_path_line,
@@ -29,7 +31,7 @@ def recv_exact(sock, size):
         data += chunk
     return data
 
-def handle_client(conn, addr, model, H, preview):
+def handle_client(conn, addr, model, H, preview, simple_mode):
     print(f"Client connected: {addr}")
     last_turn = "RIGHT"
     last_time = time.time()
@@ -71,6 +73,7 @@ def handle_client(conn, addr, model, H, preview):
             rr_objects = []
 
             frame_area = float(w * h)
+            heatmap_boxes = []
             total_box_area = 0.0
             max_box_area = 0.0
 
@@ -122,20 +125,32 @@ def handle_client(conn, addr, model, H, preview):
                         (0, 255, 0),
                         2,
                     )
+                    if simple_mode:
+                        heatmap_boxes.append((x1, y1, x2, y2, dist_m))
 
             # Use the full decision logic instead of simplified version
-            action, last_turn, risk_meta = decide_action(
-                ll_objects,
-                l_objects,
-                middle_objects,
-                r_objects,
-                rr_objects,
-                last_turn,
-                desired_turn,
-                verbose=preview  # Print debug info when preview is on
-            )
+            if simple_mode:
+                if middle_blocked(middle_objects):
+                    action = "STOP"
+                elif middle_clear(middle_objects):
+                    action = "FORWARD"
+                else:
+                    action = "STOP"
+                risk_meta = {"left_risk": 0.0, "right_risk": 0.0}
+                turn, confidence = compute_turn_and_confidence(action, risk_meta, 0.0)
+            else:
+                action, last_turn, risk_meta = decide_action(
+                    ll_objects,
+                    l_objects,
+                    middle_objects,
+                    r_objects,
+                    rr_objects,
+                    last_turn,
+                    desired_turn,
+                    verbose=preview  # Print debug info when preview is on
+                )
 
-            turn, confidence = compute_turn_and_confidence(action, risk_meta, 0.0)
+                turn, confidence = compute_turn_and_confidence(action, risk_meta, 0.0)
 
             if occluded:
                 if total_box_area < OCCLUSION_CLEAR_RATIO and max_box_area < (OCCLUSION_MAX_BOX_RATIO * 0.8):
@@ -205,6 +220,17 @@ def handle_client(conn, addr, model, H, preview):
                     2,
                 )
                 cv2.imshow("Stream Preview", frame)
+                if simple_mode and heatmap_boxes:
+                    heat = np.zeros((h, w), dtype=np.float32)
+                    max_dist = 3.0
+                    for x1, y1, x2, y2, dist_m in heatmap_boxes:
+                        intensity = max(0.0, 1.0 - min(dist_m, max_dist) / max_dist)
+                        if x2 > x1 and y2 > y1:
+                            heat[y1:y2, x1:x2] = np.maximum(heat[y1:y2, x1:x2], intensity)
+                    heat_u8 = (heat * 255).astype(np.uint8)
+                    heat_color = cv2.applyColorMap(heat_u8, cv2.COLORMAP_JET)
+                    overlay = cv2.addWeighted(frame, 0.6, heat_color, 0.4, 0)
+                    cv2.imshow("Depth Heatmap", overlay)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
     finally:
@@ -220,6 +246,7 @@ def main():
     parser.add_argument("--model", default="models/yolov8n.pt")
     parser.add_argument("--calib", default="floor_calib.json")
     parser.add_argument("--preview", action="store_true")
+    parser.add_argument("--simple-forward", action="store_true")
     args = parser.parse_args()
 
     model = YOLO(args.model)
@@ -233,7 +260,7 @@ def main():
     print(f"Listening on {args.host}:{args.port}")
     while True:
         conn, addr = server.accept()
-        handle_client(conn, addr, model, H, args.preview)
+        handle_client(conn, addr, model, H, args.preview, args.simple_forward)
 
 if __name__ == "__main__":
     main()
