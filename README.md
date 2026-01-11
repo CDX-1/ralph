@@ -1,4 +1,8 @@
-<img src="https://i.imgur.com/Nlzv3PZ.png" width="300"> 
+<img src="https://i.imgur.com/M6R0kj1.png" width="800" height="400"> 
+
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
+![Raspberry Pi](https://img.shields.io/badge/-Raspberry_Pi-C51A4A?style=for-the-badge&logo=Raspberry-Pi)
 
 # Ralph
 Real-time AI-powered obstacle detection and navigation assistance system using computer vision and voice feedback.
