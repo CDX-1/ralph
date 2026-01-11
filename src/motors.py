@@ -39,13 +39,16 @@ class MotorController:
         self.in3.off()
         self.in4.off()
 
-    def forward(self, speed=0.6):
+    def drive_forward(self, left_speed=0.6, right_speed=0.6):
         self.in1.on()
         self.in2.off()
         self.in3.on()
         self.in4.off()
-        self.ena.value = min(1.0, max(0.0, speed * a_multi))
-        self.enb.value = min(1.0, max(0.0, speed * b_multi))
+        self.ena.value = min(1.0, max(0.0, left_speed * a_multi))
+        self.enb.value = min(1.0, max(0.0, right_speed * b_multi))
+
+    def forward(self, speed=0.6):
+        self.drive_forward(speed, speed)
 
     def backward(self, speed=0.6):
         self.in1.off()
@@ -72,6 +75,12 @@ class MotorController:
         self.in4.off()
         self.ena.value = min(1.0, max(0.0, speed * turn_scale * a_multi))
         self.enb.value = min(1.0, max(0.0, speed * turn_scale * b_multi))
+
+    def steer_left_forward(self, base_speed=0.5, turn_factor=0.6):
+        self.drive_forward(base_speed * turn_factor, base_speed)
+
+    def steer_right_forward(self, base_speed=0.5, turn_factor=0.6):
+        self.drive_forward(base_speed, base_speed * turn_factor)
 
     def cleanup(self):
         self.stop()

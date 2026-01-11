@@ -20,7 +20,8 @@ def send_frame(sock, frame, jpeg_quality):
     return True
 
 
-TURN_SPEED = 1
+TURN_BASE_SPEED = 0.45
+TURN_FACTOR = 0.6
 
 
 def main():
@@ -121,9 +122,9 @@ def main():
                     elif best_action == "FORWARD":
                         motors.forward(speed=max(0.3, speed))
                     elif best_action == "STEER_LEFT":
-                        motors.turn_left(speed=TURN_SPEED)
+                        motors.steer_left_forward(base_speed=TURN_BASE_SPEED, turn_factor=TURN_FACTOR)
                     elif best_action == "STEER_RIGHT":
-                        motors.turn_right(speed=TURN_SPEED)
+                        motors.steer_right_forward(base_speed=TURN_BASE_SPEED, turn_factor=TURN_FACTOR)
 
                 action_stats = {}
                 bucket_start = now
