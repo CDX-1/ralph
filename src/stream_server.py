@@ -153,9 +153,6 @@ def handle_client(conn, addr, model, H, preview):
                 cv2.line(frame, (2 * fifth, 0), (2 * fifth, h), (255, 255, 255), 2)
                 cv2.line(frame, (3 * fifth, 0), (3 * fifth, h), (255, 255, 255), 2)
                 cv2.line(frame, (4 * fifth, 0), (4 * fifth, h), (255, 255, 255), 2)
-                if target_point is not None:
-                    cv2.line(frame, floor_origin, target_point, (0, 200, 255), 2)
-                    cv2.circle(frame, target_point, 6, (0, 255, 255), -1)
 
                 LL_dist = min([obj[0] for obj in ll_objects]) if ll_objects else None
                 L_dist = min([obj[0] for obj in l_objects]) if l_objects else None
@@ -189,7 +186,6 @@ def handle_client(conn, addr, model, H, preview):
                 cv2.imshow("Stream Preview", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
-            prev_gray = curr_gray
     finally:
         if preview:
             cv2.destroyAllWindows()
