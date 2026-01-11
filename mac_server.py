@@ -11,7 +11,12 @@ from ultralytics import YOLO
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from config import CONF_THRESH, RELEVANT_CLASSES
+from config import (
+    CONF_THRESH,
+    LEFT_MAX,
+    RIGHT_MIN,
+    RELEVANT_CLASSES,
+)
 from spatial import decide_action
 
 
@@ -19,6 +24,9 @@ HOST = "0.0.0.0"
 PORT = 5001
 JPEG_QUALITY = 80
 SHOW_WINDOW = os.environ.get("SHOW_STREAM", "").lower() in ("1", "true", "yes")
+SWERVE_DISTANCE_M = float(os.environ.get("SWERVE_DISTANCE_M", "1.5"))
+SWERVE_RISK_CENTER_MIN = float(os.environ.get("SWERVE_RISK_CENTER_MIN", "0.06"))
+SWERVE_RISK_DIFF_MIN = float(os.environ.get("SWERVE_RISK_DIFF_MIN", "0.02"))
 
 
 def recvall(sock: socket.socket, length: int) -> bytes:
@@ -63,6 +71,7 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
             overlays = []
             action = "GO"
             reason = "No detections yet"
+            risks = None
 
             if results is not None and results.boxes is not None:
                 dets = []
@@ -78,9 +87,10 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
                         "xyxy": (x1, y1, x2, y2),
                     })
 
-                action, reason, _debug, prev_area_by_key, overlays = decide_action(
+                action, reason, debug, prev_area_by_key, overlays = decide_action(
                     frame.shape[1], frame.shape[0], dets, prev_area_by_key
                 )
+                risks = debug.get("risk")
 
             distance_ahead = None
             distance_critical = False
@@ -92,6 +102,19 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
                     distance_ahead = max(0.3, 10.0 * (0.05 / max(area_norm, 0.001))) / 2
                     if distance_ahead <= 1.0:
                         distance_critical = True
+
+            if distance_ahead is not None and distance_ahead <= SWERVE_DISTANCE_M and risks:
+                risk_left, risk_center, risk_right = risks
+                if risk_center >= SWERVE_RISK_CENTER_MIN and abs(risk_left - risk_right) >= SWERVE_RISK_DIFF_MIN:
+                    if risk_left <= risk_right:
+                        action = "STEER_LEFT"
+                        reason = f"Obstacle ahead ({distance_ahead:.2f}m), steering left"
+                    else:
+                        action = "STEER_RIGHT"
+                        reason = f"Obstacle ahead ({distance_ahead:.2f}m), steering right"
+                else:
+                    action = "GO"
+                    reason = "Clear enough to continue straight"
 
             response = {
                 "action": action,
@@ -105,6 +128,11 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
             conn.sendall(struct.pack("!I", len(payload)) + payload)
 
             if SHOW_WINDOW:
+                h, w = frame.shape[:2]
+                x_left = int(w * LEFT_MAX)
+                x_right = int(w * RIGHT_MIN)
+                cv2.line(frame, (x_left, 0), (x_left, h), (0, 0, 0), 2)
+                cv2.line(frame, (x_right, 0), (x_right, h), (0, 0, 0), 2)
                 cv2.putText(
                     frame,
                     f"{action} | {reason}",
