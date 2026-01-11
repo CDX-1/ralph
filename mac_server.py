@@ -137,9 +137,10 @@ def handle_client(conn: socket.socket, addr, model: YOLO, midas):
                 if SHOW_WINDOW and depth["valid"] and depth["depth_vis"] is not None:
                     cv2.imshow("MiDaS Depth Map (Mac)", depth["depth_vis"])
 
-            if action not in ("GO", "STOP"):
-                action = "GO"
-                reason = "Go (turning disabled)"
+            # Disables turning (for testing)
+            # if action not in ("GO", "STOP"):
+            #     action = "GO"
+            #     reason = "Go (turning disabled)"
 
             response = {
                 "action": action,

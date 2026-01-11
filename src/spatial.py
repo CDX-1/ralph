@@ -77,8 +77,16 @@ def decide_action(frame_w: int, frame_h: int, dets: list, prev_area_by_key: dict
     if approach_triggered and risk_center > max(risk_left, risk_right) and risk_center > 0.05:
         return "WARN", "Approaching object ahead", {"risk": (risk_left, risk_center, risk_right)}, prev_area_by_key, overlays
 
-    risks = {"LEFT": risk_left, "CENTER": risk_center, "RIGHT": risk_right}
-    best_zone = min(risks, key=risks.get)
+    min_risk = min(risk_left, risk_center, risk_right)
+    
+    if risk_left == risk_right == min_risk:
+        best_zone = "RIGHT"
+    elif risk_center == min_risk:
+        best_zone = "CENTER"
+    elif risk_left == min_risk:
+        best_zone = "LEFT"
+    else:
+        best_zone = "RIGHT"
 
     if best_zone == "CENTER":
         if warn_triggered and risk_center > 0.03:

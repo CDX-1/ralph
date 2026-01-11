@@ -192,7 +192,7 @@ if __name__ == "__main__":
     print("\n=== Motor Controller Test ===\n")
     
     # Initialize with default pins
-    motors = MotorController(default_speed=60)
+    motors = MotorController()
     
     try:
         print("Testing each direction for 2 seconds...\n")
