@@ -35,18 +35,18 @@ class MotorController:
         self.in4.off()
 
     def forward(self, speed=0.6):
-        self.in1.off()
-        self.in2.on()
-        self.in3.off()
-        self.in4.on()
-        self.ena.value = speed
-        self.enb.value = speed
-
-    def backward(self, speed=0.6):
         self.in1.on()
         self.in2.off()
         self.in3.on()
         self.in4.off()
+        self.ena.value = speed
+        self.enb.value = speed
+
+    def backward(self, speed=0.6):
+        self.in1.off()
+        self.in2.on()
+        self.in3.off()
+        self.in4.on()
         self.ena.value = speed
         self.enb.value = speed
 
