@@ -1,10 +1,13 @@
 import argparse
+import json
 import socket
 import struct
 import sys
 import time
 
 import cv2
+
+from motors import MotorController
 
 
 def send_frame(sock, frame, jpeg_quality):
@@ -42,6 +45,12 @@ def main():
     sock.connect((args.host, args.port))
     sock_file = sock.makefile("r", encoding="utf-8", newline="\n")
 
+    try:
+        motors = MotorController()
+    except Exception as exc:
+        print(f"Motor controller unavailable: {exc}", file=sys.stderr)
+        motors = None
+
     next_frame_time = time.time()
     try:
         while True:
@@ -55,7 +64,29 @@ def main():
             line = sock_file.readline()
             if not line:
                 break
-            print(line.strip())
+            raw = line.strip()
+            print(raw)
+            action_data = None
+            try:
+                action_data = json.loads(raw)
+            except json.JSONDecodeError:
+                action_data = None
+
+            if action_data and motors is not None:
+                action = action_data.get("action")
+                turn = float(action_data.get("turn", 0.0))
+                confidence = float(action_data.get("confidence", 0.0))
+                speed = max(0.0, min(1.0, abs(turn)))
+                print(f"action={action} turn={turn:+.2f} conf={confidence:.2f} speed={speed:.2f}")
+
+                if action == "STOP":
+                    motors.stop()
+                elif action == "FORWARD":
+                    motors.forward(speed=max(0.3, speed))
+                elif action == "STEER_LEFT":
+                    motors.turn_left(speed=max(0.3, speed))
+                elif action == "STEER_RIGHT":
+                    motors.turn_right(speed=max(0.3, speed))
 
             if args.fps > 0:
                 next_frame_time += 1.0 / args.fps
@@ -70,6 +101,8 @@ def main():
         except Exception:
             pass
         sock.close()
+        if motors is not None:
+            motors.cleanup()
         cap.release()
 
 
