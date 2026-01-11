@@ -22,8 +22,10 @@ RELEVANT_CLASSES = {
 
 OBSTACLE_CLASSES = {0, 1, 2, 3, 5, 7, 13, 56, 57, 58, 60}
 
-LEFT_MAX = 1/3
-RIGHT_MIN = 2/3
+# Wider center region for more stable forward movement
+LEFT_MAX = 0.25  # Left region is leftmost 25% (was 33%)
+RIGHT_MIN = 0.75  # Right region is rightmost 25% (was 33%)
+# CENTER region is now the middle 50% (was 33%)
 
 AREA_WARN = 0.030
 AREA_STOP = 0.070
