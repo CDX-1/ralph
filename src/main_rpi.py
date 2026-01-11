@@ -144,6 +144,8 @@ def main():
     midas_override_active = False
 
     last_results = None
+    last_yolo_fps = 0.0
+    last_midas_fps = 0.0
 
     print("Starting headless loop")
 
@@ -160,7 +162,10 @@ def main():
         do_detect = (frame_count % DETECT_EVERY_N_FRAMES == 0)
 
         if do_detect:
+            yolo_t0 = time.time()
             results = model(frame, verbose=False, classes=list(RELEVANT_CLASSES.keys()))[0]
+            yolo_dt = max(time.time() - yolo_t0, 1e-6)
+            last_yolo_fps = 1.0 / yolo_dt
             last_results = results
         else:
             results = last_results
@@ -209,11 +214,15 @@ def main():
                     )
 
         if midas_enabled:
+            midas_t0 = time.time()
             depth = midas.update(frame)
+            midas_dt = max(time.time() - midas_t0, 1e-6)
+            last_midas_fps = 1.0 / midas_dt
             if depth["valid"]:
                 if frame_count % 30 == 0:
                     print(
-                        "MiDaS roi={:.3f} left={:.3f} right={:.3f} close={}".format(
+                        "MiDaS fps={:.1f} roi={:.3f} left={:.3f} right={:.3f} close={}".format(
+                            last_midas_fps,
                             depth["roi_v"],
                             depth["left_v"],
                             depth["right_v"],
@@ -265,7 +274,10 @@ def main():
         last_action = action
 
         if frame_count % PRINT_EVERY_N_FRAMES == 0:
-            print(f"[{frame_count}] action={action} reason={reason} fps={fps:.1f}")
+            print(
+                f"[{frame_count}] action={action} reason={reason} "
+                f"loop_fps={fps:.1f} yolo_fps={last_yolo_fps:.1f} midas_fps={last_midas_fps:.1f}"
+            )
 
         if DEBUG_SAVE_EVERY_N_FRAMES and (frame_count % DEBUG_SAVE_EVERY_N_FRAMES == 0):
             out_path = f"debug_{frame_count}.jpg"
