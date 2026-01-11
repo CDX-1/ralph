@@ -18,6 +18,7 @@ from spatial import decide_action
 HOST = "0.0.0.0"
 PORT = 5001
 JPEG_QUALITY = 80
+SHOW_WINDOW = os.environ.get("SHOW_STREAM", "").lower() in ("1", "true", "yes")
 
 
 def recvall(sock: socket.socket, length: int) -> bytes:
@@ -102,11 +103,27 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
             }
             payload = json.dumps(response).encode("utf-8")
             conn.sendall(struct.pack("!I", len(payload)) + payload)
+
+            if SHOW_WINDOW:
+                cv2.putText(
+                    frame,
+                    f"{action} | {reason}",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 255, 0),
+                    2,
+                )
+                cv2.imshow("RPI Stream (YOLO on Mac)", frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
     except ConnectionError:
         pass
     finally:
         conn.close()
         print(f"Client disconnected: {addr}")
+        if SHOW_WINDOW:
+            cv2.destroyAllWindows()
 
 
 def main():
