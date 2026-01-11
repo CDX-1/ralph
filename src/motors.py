@@ -72,7 +72,7 @@ class MotorController:
     def cleanup(self):
         self.stop()
 
-if __name__ == "main":
+if __name__ == "__main__":
     print("Motor controller test")
     motors = MotorController()
     motors.forward()
