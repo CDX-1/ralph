@@ -25,7 +25,7 @@ def recv_exact(sock, size):
         data += chunk
     return data
 
-def handle_client(conn, addr, model, H):
+def handle_client(conn, addr, model, H, far_left, far_right, preview):
     print(f"Client connected: {addr}")
     last_turn = "LEFT"
     last_time = time.time()
@@ -70,11 +70,11 @@ def handle_client(conn, addr, model, H):
             frame_area = float(w * h)
 
             col_boundaries = [
-                (0, fifth, ll_objects),
-                (fifth, 2 * fifth, l_objects),
-                (2 * fifth, 3 * fifth, middle_objects),
-                (3 * fifth, 4 * fifth, r_objects),
-                (4 * fifth, w, rr_objects),
+                (0, fifth, "LL", ll_objects),
+                (fifth, 2 * fifth, "L", l_objects),
+                (2 * fifth, 3 * fifth, "M", middle_objects),
+                (3 * fifth, 4 * fifth, "R", r_objects),
+                (4 * fifth, w, "RR", rr_objects),
             ]
 
             for box in results.boxes:
@@ -94,9 +94,25 @@ def handle_client(conn, addr, model, H):
 
                 obj_data = (dist_m, box_area_normalized)
 
-                for col_start, col_end, region_list in col_boundaries:
+                overlaps = []
+                for col_start, col_end, region_name, region_list in col_boundaries:
                     if x1 < col_end and x2 > col_start:
+                        overlaps.append(region_name)
                         region_list.append(obj_data)
+
+                if preview:
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.circle(frame, (bx, by), 5, (0, 0, 255), -1)
+                    overlap_str = "+".join(overlaps) if overlaps else "--"
+                    cv2.putText(
+                        frame,
+                        f"{overlap_str} {dist_m:.2f}m",
+                        (x1, max(20, y1 - 10)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 0),
+                        2,
+                    )
 
             action, last_turn, risk_meta = decide_action(
                 ll_objects,
@@ -121,7 +137,52 @@ def handle_client(conn, addr, model, H):
                 "fps": float(fps),
             }
             conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+
+            if preview:
+                cv2.line(frame, (fifth, 0), (fifth, h), (255, 255, 255), 2)
+                cv2.line(frame, (2 * fifth, 0), (2 * fifth, h), (255, 255, 255), 2)
+                cv2.line(frame, (3 * fifth, 0), (3 * fifth, h), (255, 255, 255), 2)
+                cv2.line(frame, (4 * fifth, 0), (4 * fifth, h), (255, 255, 255), 2)
+                if far_left is not None and far_right is not None:
+                    cv2.line(frame, far_left, far_right, (255, 128, 0), 2)
+                if floor_y is not None:
+                    cv2.line(frame, floor_origin, floor_target, (0, 200, 255), 2)
+
+                LL_dist = min([obj[0] for obj in ll_objects]) if ll_objects else None
+                L_dist = min([obj[0] for obj in l_objects]) if l_objects else None
+                M_dist = min([obj[0] for obj in middle_objects]) if middle_objects else None
+                R_dist = min([obj[0] for obj in r_objects]) if r_objects else None
+                RR_dist = min([obj[0] for obj in rr_objects]) if rr_objects else None
+
+                dist_info = f"LL:{LL_dist:.1f}" if LL_dist else "LL:--"
+                dist_info += f" L:{L_dist:.1f}" if L_dist else " L:--"
+                dist_info += f" M:{M_dist:.1f}" if M_dist else " M:--"
+                dist_info += f" R:{R_dist:.1f}" if R_dist else " R:--"
+                dist_info += f" RR:{RR_dist:.1f}" if RR_dist else " RR:--"
+                cv2.putText(
+                    frame,
+                    f"{dist_info} FPS:{fps:.1f}",
+                    (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    frame,
+                    f"{action} turn={turn:+.2f} conf={confidence:.2f} fps={fps:.1f}",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 255),
+                    2,
+                )
+                cv2.imshow("Stream Preview", frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
     finally:
+        if preview:
+            cv2.destroyAllWindows()
         conn.close()
         print(f"Client disconnected: {addr}")
 
@@ -131,10 +192,11 @@ def main():
     parser.add_argument("--port", type=int, default=9999)
     parser.add_argument("--model", default="models/yolov8n.pt")
     parser.add_argument("--calib", default="floor_calib.json")
+    parser.add_argument("--preview", action="store_true")
     args = parser.parse_args()
 
     model = YOLO(args.model)
-    H, _, _ = load_floor_calibration(args.calib)
+    H, far_left, far_right = load_floor_calibration(args.calib)
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -144,7 +206,7 @@ def main():
     print(f"Listening on {args.host}:{args.port}")
     while True:
         conn, addr = server.accept()
-        handle_client(conn, addr, model, H)
+        handle_client(conn, addr, model, H, far_left, far_right, args.preview)
 
 if __name__ == "__main__":
     main()
