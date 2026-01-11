@@ -120,7 +120,7 @@ def main():
                     if best_action == "STOP":
                         motors.stop()
                     elif best_action == "FORWARD":
-                        motors.forward(speed=max(0.3, speed))
+                        motors.forward()
                     elif best_action == "STEER_LEFT":
                         motors.steer_left_forward(base_speed=TURN_BASE_SPEED, turn_factor=TURN_FACTOR)
                     elif best_action == "STEER_RIGHT":
