@@ -175,12 +175,6 @@ def main():
                 elif action == "GO":
                     audio.play("GO")
                     print("GO - Safe to proceed")
-                elif action == "STEER_LEFT":
-                    audio.play("TURN_LEFT")
-                    print("TURN LEFT")
-                elif action == "STEER_RIGHT":
-                    audio.play("TURN_RIGHT")
-                    print("TURN RIGHT")
                 elif action == "WARN":
                     if action != last_action or (current_time - last_audio_time) > audio_cooldown:
                         audio.play("OBSTACLE")
@@ -192,10 +186,8 @@ def main():
                     motors.stop()
                 elif action == "GO":
                     motors.forward()
-                elif action == "STEER_LEFT":
-                    motors.turn_left()
-                elif action == "STEER_RIGHT":
-                    motors.turn_right()
+                else:
+                    motors.forward()
 
             last_action = action
 

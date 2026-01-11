@@ -17,7 +17,8 @@ from config import (
     RIGHT_MIN,
     RELEVANT_CLASSES,
 )
-from spatial import decide_action
+from spatial import decide_action, draw_overlays
+from midas_depth import MidasDepth
 
 
 HOST = "0.0.0.0"
@@ -27,6 +28,27 @@ SHOW_WINDOW = os.environ.get("SHOW_STREAM", "").lower() in ("1", "true", "yes")
 SWERVE_DISTANCE_M = float(os.environ.get("SWERVE_DISTANCE_M", "1.5"))
 SWERVE_RISK_CENTER_MIN = float(os.environ.get("SWERVE_RISK_CENTER_MIN", "0.06"))
 SWERVE_RISK_DIFF_MIN = float(os.environ.get("SWERVE_RISK_DIFF_MIN", "0.02"))
+SHOW_MIDAS = os.environ.get("SHOW_MIDAS", "").lower() not in ("0", "false", "no")
+STOP_DISTANCE_M = float(os.environ.get("STOP_DISTANCE_M", "0.05"))
+MIDAS_CLOSE_THRESHOLD = float(os.environ.get("MIDAS_CLOSE_THRESHOLD", "0.65"))
+
+
+def init_midas():
+    if not SHOW_MIDAS:
+        print("MiDaS display disabled (SHOW_MIDAS=0)")
+        return None
+    try:
+        midas = MidasDepth(
+            device="cpu",
+            input_size=(384, 216),
+            close_threshold=MIDAS_CLOSE_THRESHOLD,
+            run_every_n_frames=4,
+        )
+        print("MiDaS display enabled")
+        return midas
+    except Exception as exc:
+        print(f"MiDaS init failed: {exc}")
+        return None
 
 
 def recvall(sock: socket.socket, length: int) -> bytes:
@@ -39,7 +61,7 @@ def recvall(sock: socket.socket, length: int) -> bytes:
     return data
 
 
-def handle_client(conn: socket.socket, addr, model: YOLO):
+def handle_client(conn: socket.socket, addr, model: YOLO, midas):
     print(f"Client connected: {addr}")
     prev_area_by_key = {}
 
@@ -103,18 +125,9 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
                     if distance_ahead <= 1.0:
                         distance_critical = True
 
-            if distance_ahead is not None and distance_ahead <= SWERVE_DISTANCE_M and risks:
-                risk_left, risk_center, risk_right = risks
-                if risk_center >= SWERVE_RISK_CENTER_MIN and abs(risk_left - risk_right) >= SWERVE_RISK_DIFF_MIN:
-                    if risk_left <= risk_right:
-                        action = "STEER_LEFT"
-                        reason = f"Obstacle ahead ({distance_ahead:.2f}m), steering left"
-                    else:
-                        action = "STEER_RIGHT"
-                        reason = f"Obstacle ahead ({distance_ahead:.2f}m), steering right"
-                else:
-                    action = "GO"
-                    reason = "Clear enough to continue straight"
+            if distance_ahead is not None and distance_ahead <= STOP_DISTANCE_M:
+                action = "STOP"
+                reason = f"Obstacle within {STOP_DISTANCE_M:.2f}m"
 
             response = {
                 "action": action,
@@ -128,21 +141,17 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
             conn.sendall(struct.pack("!I", len(payload)) + payload)
 
             if SHOW_WINDOW:
-                h, w = frame.shape[:2]
-                x_left = int(w * LEFT_MAX)
-                x_right = int(w * RIGHT_MIN)
-                cv2.line(frame, (x_left, 0), (x_left, h), (0, 0, 0), 2)
-                cv2.line(frame, (x_right, 0), (x_right, h), (0, 0, 0), 2)
-                cv2.putText(
-                    frame,
-                    f"{action} | {reason}",
-                    (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (0, 255, 0),
-                    2,
-                )
+                frame = draw_overlays(frame, overlays, action, reason, yolo_fps)
                 cv2.imshow("RPI Stream (YOLO on Mac)", frame)
+
+                if midas:
+                    depth = midas.update(frame)
+                    if depth["valid"] and depth.get("close_ahead"):
+                        action = "STOP"
+                        reason = "MiDaS: close obstacle ahead"
+                    if depth["valid"] and depth["depth_vis"] is not None:
+                        cv2.imshow("MiDaS Depth Map (Mac)", depth["depth_vis"])
+
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
     except ConnectionError:
@@ -157,6 +166,7 @@ def handle_client(conn: socket.socket, addr, model: YOLO):
 def main():
     model = YOLO("models/yolov8n.pt")
     print(f"Mac server listening on {HOST}:{PORT}")
+    midas = init_midas()
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -165,7 +175,7 @@ def main():
 
         while True:
             conn, addr = server.accept()
-            handle_client(conn, addr, model)
+            handle_client(conn, addr, model, midas)
 
 
 if __name__ == "__main__":
