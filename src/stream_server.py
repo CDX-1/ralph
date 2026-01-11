@@ -16,6 +16,11 @@ from vision import (
     pixel_to_world,
 )
 
+TARGET_ARRIVAL_RATIO = 0.85
+TARGET_PROGRESS_PX = 6
+TARGET_STALE_SEC = 1.5
+SEARCH_TOGGLE_SEC = 2.0
+
 def recv_exact(sock, size):
     data = b""
     while len(data) < size:
@@ -29,6 +34,12 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
     print(f"Client connected: {addr}")
     last_turn = "LEFT"
     last_time = time.time()
+    target_point = None
+    target_y_ref = None
+    target_frame_gray = None
+    last_target_seen = 0.0
+    search_dir = "LEFT"
+    last_search_toggle = time.time()
     try:
         while True:
             header = recv_exact(conn, 4)
@@ -48,16 +59,50 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
             h, w, _ = frame.shape
             fifth = w // 5
 
+            now = time.time()
             floor_y, floor_origin, floor_target = detect_floor_path_line(frame)
             desired_turn = None
             path_bias = 0.0
             if floor_y is not None:
-                dx = floor_target[0] - floor_origin[0]
+                last_target_seen = now
+                if target_point is None:
+                    target_point = floor_target
+                    target_y_ref = floor_target[1]
+                    target_frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            if target_point is not None and floor_y is not None:
+                dx = target_point[0] - floor_origin[0]
                 path_bias = float(np.clip(dx / max(1.0, w * 0.3), -1.0, 1.0))
                 if dx < -w * 0.05:
                     desired_turn = "LEFT"
                 elif dx > w * 0.05:
                     desired_turn = "RIGHT"
+
+                curr_y = floor_target[1]
+                if target_frame_gray is not None:
+                    curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    diff_mean = float(np.mean(cv2.absdiff(curr_gray, target_frame_gray)))
+                    if curr_y > target_y_ref + TARGET_PROGRESS_PX and diff_mean >= 1.0:
+                        target_y_ref = curr_y
+                        target_frame_gray = curr_gray
+
+                if curr_y >= int(h * TARGET_ARRIVAL_RATIO):
+                    target_point = None
+                    target_y_ref = None
+                    target_frame_gray = None
+
+            if target_point is None:
+                if now - last_search_toggle >= SEARCH_TOGGLE_SEC:
+                    search_dir = "RIGHT" if search_dir == "LEFT" else "LEFT"
+                    last_search_toggle = now
+                if floor_y is None:
+                    desired_turn = search_dir
+                    path_bias = -0.4 if search_dir == "LEFT" else 0.4
+
+            if target_point is not None and floor_y is None and now - last_target_seen > TARGET_STALE_SEC:
+                target_point = None
+                target_y_ref = None
+                target_frame_gray = None
 
             results = model(frame, verbose=False)[0]
 
@@ -147,6 +192,8 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                     cv2.line(frame, far_left, far_right, (255, 128, 0), 2)
                 if floor_y is not None:
                     cv2.line(frame, floor_origin, floor_target, (0, 200, 255), 2)
+                if target_point is not None:
+                    cv2.circle(frame, target_point, 6, (0, 255, 255), -1)
 
                 LL_dist = min([obj[0] for obj in ll_objects]) if ll_objects else None
                 L_dist = min([obj[0] for obj in l_objects]) if l_objects else None
