@@ -20,6 +20,9 @@ TARGET_ARRIVAL_RATIO = 0.85
 TARGET_PROGRESS_PX = 6
 TARGET_STALE_SEC = 1.5
 SEARCH_TOGGLE_SEC = 2.0
+PATH_BIAS_SCALE = 0.6
+TURN_DEADBAND = 0.08
+SEARCH_BIAS = 0.25
 
 def recv_exact(sock, size):
     data = b""
@@ -40,6 +43,7 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
     last_target_seen = 0.0
     last_progress_time = 0.0
     last_progress_y = None
+    prev_gray = None
     search_dir = "LEFT"
     last_search_toggle = time.time()
     try:
@@ -60,6 +64,7 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
 
             h, w, _ = frame.shape
             fifth = w // 5
+            curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
             now = time.time()
             floor_y = None
@@ -74,7 +79,7 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                     last_target_seen = now
                     target_point = floor_target
                     target_y_ref = floor_target[1]
-                    target_frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    target_frame_gray = curr_gray
                     last_progress_time = now
                     last_progress_y = target_y_ref
                 else:
@@ -82,18 +87,33 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                         search_dir = "RIGHT" if search_dir == "LEFT" else "LEFT"
                         last_search_toggle = now
                     desired_turn = search_dir
-                    path_bias = -0.4 if search_dir == "LEFT" else 0.4
+                    path_bias = -SEARCH_BIAS if search_dir == "LEFT" else SEARCH_BIAS
             else:
+                if prev_gray is not None and target_point is not None:
+                    p0 = np.array([[target_point]], dtype=np.float32)
+                    p1, st, _ = cv2.calcOpticalFlowPyrLK(
+                        prev_gray,
+                        curr_gray,
+                        p0,
+                        None,
+                        winSize=(21, 21),
+                        maxLevel=2,
+                    )
+                    if st is not None and st[0][0] == 1:
+                        tx, ty = p1[0][0]
+                        tx = int(np.clip(tx, 0, w - 1))
+                        ty = int(np.clip(ty, 0, h - 1))
+                        target_point = (tx, ty)
+
                 # Keep the original target; only detect current line for progress checks.
                 floor_y, _, floor_target = detect_floor_path_line(frame)
                 dx = target_point[0] - floor_origin[0]
-                path_bias = float(np.clip(dx / max(1.0, w * 0.3), -1.0, 1.0))
-                if dx < -w * 0.05:
+                path_bias = float(np.clip(dx / max(1.0, w * 0.3), -1.0, 1.0)) * PATH_BIAS_SCALE
+                if dx < -w * TURN_DEADBAND:
                     desired_turn = "LEFT"
-                elif dx > w * 0.05:
+                elif dx > w * TURN_DEADBAND:
                     desired_turn = "RIGHT"
 
-                curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 diff_mean = float(np.mean(cv2.absdiff(curr_gray, target_frame_gray))) if target_frame_gray is not None else 0.0
                 if floor_target is not None:
                     curr_y = floor_target[1]
@@ -113,7 +133,7 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                         search_dir = "RIGHT" if search_dir == "LEFT" else "LEFT"
                         last_search_toggle = now
                     desired_turn = search_dir
-                    path_bias = -0.35 if search_dir == "LEFT" else 0.35
+                    path_bias = -SEARCH_BIAS if search_dir == "LEFT" else SEARCH_BIAS
 
             results = model(frame, verbose=False)[0]
 
@@ -237,6 +257,7 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                 cv2.imshow("Stream Preview", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
+            prev_gray = curr_gray
     finally:
         if preview:
             cv2.destroyAllWindows()
