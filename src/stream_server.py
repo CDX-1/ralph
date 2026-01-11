@@ -10,21 +10,13 @@ from ultralytics import YOLO
 
 from vision import (
     compute_turn_and_confidence,
-    decide_action,
-    detect_floor_path_line,
     choose_avoid_turn,
+    get_side_risk_meta,
     middle_clear,
     load_floor_calibration,
     pixel_to_world,
 )
 
-TARGET_ARRIVAL_RATIO = 0.85
-TARGET_PROGRESS_PX = 6
-TARGET_STALE_SEC = 1.5
-SEARCH_TOGGLE_SEC = 2.0
-PATH_BIAS_SCALE = 0.6
-TURN_DEADBAND = 0.08
-SEARCH_BIAS = 0.25
 AVOID_PATH_BIAS = 0.3
 
 def recv_exact(sock, size):
@@ -36,20 +28,11 @@ def recv_exact(sock, size):
         data += chunk
     return data
 
-def handle_client(conn, addr, model, H, far_left, far_right, preview):
+def handle_client(conn, addr, model, H, preview):
     print(f"Client connected: {addr}")
     last_turn = "LEFT"
     last_time = time.time()
-    target_point = None
-    target_y_ref = None
-    target_frame_gray = None
-    last_target_seen = 0.0
-    last_progress_time = 0.0
-    last_progress_y = None
-    prev_gray = None
     avoid_turn = None
-    search_dir = "LEFT"
-    last_search_toggle = time.time()
     try:
         while True:
             header = recv_exact(conn, 4)
@@ -68,76 +51,7 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
 
             h, w, _ = frame.shape
             fifth = w // 5
-            curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-            now = time.time()
-            floor_y = None
-            floor_origin = (w // 2, h - 1)
-            floor_target = None
-            desired_turn = None
             path_bias = 0.0
-
-            if target_point is None:
-                floor_y, floor_origin, floor_target = detect_floor_path_line(frame)
-                if floor_y is not None:
-                    last_target_seen = now
-                    target_point = floor_target
-                    target_y_ref = floor_target[1]
-                    target_frame_gray = curr_gray
-                    last_progress_time = now
-                    last_progress_y = target_y_ref
-                else:
-                    if now - last_search_toggle >= SEARCH_TOGGLE_SEC:
-                        search_dir = "RIGHT" if search_dir == "LEFT" else "LEFT"
-                        last_search_toggle = now
-                    desired_turn = search_dir
-                    path_bias = -SEARCH_BIAS if search_dir == "LEFT" else SEARCH_BIAS
-            else:
-                if prev_gray is not None and target_point is not None:
-                    p0 = np.array([[target_point]], dtype=np.float32)
-                    p1, st, _ = cv2.calcOpticalFlowPyrLK(
-                        prev_gray,
-                        curr_gray,
-                        p0,
-                        None,
-                        winSize=(21, 21),
-                        maxLevel=2,
-                    )
-                    if st is not None and st[0][0] == 1:
-                        tx, ty = p1[0][0]
-                        tx = int(np.clip(tx, 0, w - 1))
-                        ty = int(np.clip(ty, 0, h - 1))
-                        target_point = (tx, ty)
-
-                # Keep the original target; only detect current line for progress checks.
-                floor_y, _, floor_target = detect_floor_path_line(frame)
-                dx = target_point[0] - floor_origin[0]
-                path_bias = float(np.clip(dx / max(1.0, w * 0.3), -1.0, 1.0)) * PATH_BIAS_SCALE
-                if dx < -w * TURN_DEADBAND:
-                    desired_turn = "LEFT"
-                elif dx > w * TURN_DEADBAND:
-                    desired_turn = "RIGHT"
-
-                diff_mean = float(np.mean(cv2.absdiff(curr_gray, target_frame_gray))) if target_frame_gray is not None else 0.0
-                if floor_target is not None:
-                    curr_y = floor_target[1]
-                    if last_progress_y is None:
-                        last_progress_y = curr_y
-                    if curr_y > last_progress_y + TARGET_PROGRESS_PX or diff_mean >= 1.0:
-                        last_progress_y = curr_y
-                        last_progress_time = now
-                        target_frame_gray = curr_gray
-                    if curr_y >= int(h * TARGET_ARRIVAL_RATIO):
-                        target_point = None
-                        target_y_ref = None
-                        target_frame_gray = None
-                        last_progress_y = None
-                if now - last_progress_time > TARGET_STALE_SEC:
-                    if now - last_search_toggle >= SEARCH_TOGGLE_SEC:
-                        search_dir = "RIGHT" if search_dir == "LEFT" else "LEFT"
-                        last_search_toggle = now
-                    desired_turn = search_dir
-                    path_bias = -SEARCH_BIAS if search_dir == "LEFT" else SEARCH_BIAS
 
             results = model(frame, verbose=False)[0]
 
@@ -208,19 +122,18 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                     avoid_turn = None
 
             if avoid_turn is not None:
-                desired_turn = avoid_turn
                 path_bias = -AVOID_PATH_BIAS if avoid_turn == "LEFT" else AVOID_PATH_BIAS
 
-            action, last_turn, risk_meta = decide_action(
-                ll_objects,
-                l_objects,
-                middle_objects,
-                r_objects,
-                rr_objects,
-                last_turn,
-                desired_turn,
-                verbose=False,
-            )
+            if avoid_turn == "LEFT":
+                action = "STEER_LEFT"
+                last_turn = "LEFT"
+            elif avoid_turn == "RIGHT":
+                action = "STEER_RIGHT"
+                last_turn = "RIGHT"
+            else:
+                action = "FORWARD"
+
+            risk_meta = get_side_risk_meta(ll_objects, l_objects, r_objects, rr_objects)
             turn, confidence = compute_turn_and_confidence(action, risk_meta, path_bias)
 
             now = time.time()
@@ -240,8 +153,6 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                 cv2.line(frame, (2 * fifth, 0), (2 * fifth, h), (255, 255, 255), 2)
                 cv2.line(frame, (3 * fifth, 0), (3 * fifth, h), (255, 255, 255), 2)
                 cv2.line(frame, (4 * fifth, 0), (4 * fifth, h), (255, 255, 255), 2)
-                if far_left is not None and far_right is not None:
-                    cv2.line(frame, far_left, far_right, (255, 128, 0), 2)
                 if target_point is not None:
                     cv2.line(frame, floor_origin, target_point, (0, 200, 255), 2)
                     cv2.circle(frame, target_point, 6, (0, 255, 255), -1)
@@ -295,7 +206,7 @@ def main():
     args = parser.parse_args()
 
     model = YOLO(args.model)
-    H, far_left, far_right = load_floor_calibration(args.calib)
+    H, _, _ = load_floor_calibration(args.calib)
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -305,7 +216,7 @@ def main():
     print(f"Listening on {args.host}:{args.port}")
     while True:
         conn, addr = server.accept()
-        handle_client(conn, addr, model, H, far_left, far_right, args.preview)
+        handle_client(conn, addr, model, H, args.preview)
 
 if __name__ == "__main__":
     main()

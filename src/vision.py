@@ -64,6 +64,15 @@ def choose_avoid_turn(LL_objects, L_objects, M_objects, R_objects, RR_objects, l
     return "LEFT" if left_risk < right_risk else "RIGHT"
 
 
+def get_side_risk_meta(LL_objects, L_objects, R_objects, RR_objects):
+    left_risk, _ = calculate_risk_score(LL_objects + L_objects)
+    right_risk, _ = calculate_risk_score(R_objects + RR_objects)
+    return {
+        "left_risk": left_risk,
+        "right_risk": right_risk,
+    }
+
+
 def decide_action(LL_objects, L_objects, M_objects, R_objects, RR_objects, last_turn, desired_turn, verbose=True):
     """
     Decide action based on distance and bounding box size of objects in each region.
