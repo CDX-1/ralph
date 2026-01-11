@@ -191,5 +191,4 @@ This project uses the COCO Crosswalk Detection dataset under CC BY 4.0 license.
 ## Acknowledgments
 
 - YOLOv8 by Ultralytics
-- Crosswalk dataset from Roboflow Universe
 - ElevenLabs for text-to-speech API
