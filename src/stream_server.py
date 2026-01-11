@@ -16,6 +16,10 @@ from vision import (
     detect_floor_path_line,
 )
 
+OCCLUSION_AREA_RATIO = 0.5
+OCCLUSION_CLEAR_RATIO = 0.35
+OCCLUSION_MAX_BOX_RATIO = 0.4
+
 def recv_exact(sock, size):
     data = b""
     while len(data) < size:
@@ -29,6 +33,7 @@ def handle_client(conn, addr, model, H, preview):
     print(f"Client connected: {addr}")
     last_turn = "RIGHT"
     last_time = time.time()
+    occluded = False
     
     try:
         while True:
@@ -66,6 +71,8 @@ def handle_client(conn, addr, model, H, preview):
             rr_objects = []
 
             frame_area = float(w * h)
+            total_box_area = 0.0
+            max_box_area = 0.0
 
             col_boundaries = [
                 (0, fifth, "LL", ll_objects),
@@ -83,6 +90,9 @@ def handle_client(conn, addr, model, H, preview):
                 box_height = y2 - y1
                 box_area = box_width * box_height
                 box_area_normalized = box_area / frame_area
+                total_box_area += box_area_normalized
+                if box_area_normalized > max_box_area:
+                    max_box_area = box_area_normalized
 
                 # Use bottom center of box for distance measurement
                 bx = max(0, min(cx, w - 1))
@@ -126,6 +136,18 @@ def handle_client(conn, addr, model, H, preview):
             )
 
             turn, confidence = compute_turn_and_confidence(action, risk_meta, 0.0)
+
+            if occluded:
+                if total_box_area < OCCLUSION_CLEAR_RATIO and max_box_area < (OCCLUSION_MAX_BOX_RATIO * 0.8):
+                    occluded = False
+            else:
+                if total_box_area >= OCCLUSION_AREA_RATIO or max_box_area >= OCCLUSION_MAX_BOX_RATIO:
+                    occluded = True
+
+            if occluded:
+                action = "STOP"
+                turn = 0.0
+                confidence = 1.0
 
             now = time.time()
             fps = 1.0 / max(1e-6, now - last_time)
