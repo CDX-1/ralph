@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from camera import get_camera_index
 from config import FRAME_W, FRAME_H
+from motors import MotorController
 
 
 SERVER_HOST = os.environ.get("MAC_SERVER_HOST", "127.0.0.1")
@@ -106,6 +107,12 @@ def recvall(sock: socket.socket, length: int) -> bytes:
 
 def main():
     audio = SafeAudioManager()
+    motors = None
+    try:
+        motors = MotorController()
+        print("Motor controller enabled (gpiozero)")
+    except Exception as exc:
+        print(f"Motor controller disabled: {exc}")
 
     cam_index = get_camera_index()
     cap = cv2.VideoCapture(cam_index)
@@ -180,6 +187,16 @@ def main():
                         last_audio_time = current_time
                         print("OBSTACLE DETECTED")
 
+            if motors:
+                if distance_critical or action == "STOP":
+                    motors.stop()
+                elif action == "GO":
+                    motors.forward()
+                elif action == "STEER_LEFT":
+                    motors.turn_left()
+                elif action == "STEER_RIGHT":
+                    motors.turn_right()
+
             last_action = action
 
             loop_fps = 1.0 / max(time.time() - loop_t0, 1e-6)
@@ -194,6 +211,8 @@ def main():
                 break
 
     cap.release()
+    if motors:
+        motors.cleanup()
 
 
 if __name__ == "__main__":
