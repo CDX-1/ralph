@@ -7,7 +7,7 @@ except Exception:
 import time
 
 a_multi = 1.0
-b_multi = 1.8
+b_multi = 1.9
 turn_scale = 0.4
 
 class MotorController:
