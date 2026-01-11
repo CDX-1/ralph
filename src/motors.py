@@ -8,6 +8,7 @@ import time
 
 a_multi = 1.0
 b_multi = 1.6
+turn_scale = 0.4
 
 class MotorController:
     def __init__(
@@ -60,8 +61,8 @@ class MotorController:
         self.in2.off()
         self.in3.off()
         self.in4.on()
-        self.ena.value = min(1.0, max(0.0, speed * a_multi))
-        self.enb.value = min(1.0, max(0.0, speed * b_multi))
+        self.ena.value = min(1.0, max(0.0, speed * turn_scale * a_multi))
+        self.enb.value = min(1.0, max(0.0, speed * turn_scale * b_multi))
 
     def turn_right(self, speed=0.6):
         # Skid steer: left forward, right backward
@@ -69,8 +70,8 @@ class MotorController:
         self.in2.on()
         self.in3.on()
         self.in4.off()
-        self.ena.value = min(1.0, max(0.0, speed * a_multi))
-        self.enb.value = min(1.0, max(0.0, speed * b_multi))
+        self.ena.value = min(1.0, max(0.0, speed * turn_scale * a_multi))
+        self.enb.value = min(1.0, max(0.0, speed * turn_scale * b_multi))
 
     def cleanup(self):
         self.stop()
