@@ -6,7 +6,8 @@ except Exception:
 
 import time
 
-b_multi = 2.0
+a_multi = 0.8
+b_multi = 1.6
 
 class MotorController:
     def __init__(
@@ -30,7 +31,7 @@ class MotorController:
         self.enb = PWMOutputDevice(enb, initial_value=0.0)
 
     def stop(self):
-        self.ena.value = 0.0
+        self.ena.value = 0.0 * a_multi
         self.enb.value = 0.0 * b_multi
         self.in1.off()
         self.in2.off()
@@ -42,7 +43,7 @@ class MotorController:
         self.in2.off()
         self.in3.on()
         self.in4.off()
-        self.ena.value = speed
+        self.ena.value = speed * a_multi
         self.enb.value = speed * b_multi
 
     def backward(self, speed=0.6):
@@ -50,7 +51,7 @@ class MotorController:
         self.in2.on()
         self.in3.off()
         self.in4.on()
-        self.ena.value = speed
+        self.ena.value = speed * a_multi
         self.enb.value = speed * b_multi
 
     def turn_left(self, speed=0.6):
@@ -59,7 +60,7 @@ class MotorController:
         self.in2.off()
         self.in3.off()
         self.in4.on()
-        self.ena.value = speed
+        self.ena.value = speed * a_multi
         self.enb.value = speed * b_multi
 
     def turn_right(self, speed=0.6):
@@ -68,7 +69,7 @@ class MotorController:
         self.in2.on()
         self.in3.on()
         self.in4.off()
-        self.ena.value = speed
+        self.ena.value = speed * a_multi
         self.enb.value = speed * b_multi
 
     def cleanup(self):
