@@ -1,8 +1,8 @@
 try:
-    from gpiozero import Motor, PWMOutputDevice
+    from gpiozero import PWMOutputDevice, DigitalOutputDevice
 except Exception:  # pragma: no cover - allows import on non-Pi hosts
-    Motor = None
     PWMOutputDevice = None
+    DigitalOutputDevice = None
 
 
 class MotorController:
@@ -15,36 +15,58 @@ class MotorController:
         in4=24,
         enb=25,
     ):
-        if Motor is None or PWMOutputDevice is None:
+        if PWMOutputDevice is None or DigitalOutputDevice is None:
             raise RuntimeError("gpiozero not available")
 
-        self.left_enable = PWMOutputDevice(ena, initial_value=0.0)
-        self.right_enable = PWMOutputDevice(enb, initial_value=0.0)
+        self.in1 = DigitalOutputDevice(in1)
+        self.in2 = DigitalOutputDevice(in2)
+        self.in3 = DigitalOutputDevice(in3)
+        self.in4 = DigitalOutputDevice(in4)
 
-        self.left = Motor(forward=in1, backward=in2, enable=self.left_enable)
-        self.right = Motor(forward=in3, backward=in4, enable=self.right_enable)
+        self.ena = PWMOutputDevice(ena, initial_value=0.0)
+        self.enb = PWMOutputDevice(enb, initial_value=0.0)
 
     def stop(self):
-        self.left.stop()
-        self.right.stop()
+        self.ena.value = 0.0
+        self.enb.value = 0.0
+        self.in1.off()
+        self.in2.off()
+        self.in3.off()
+        self.in4.off()
 
     def forward(self, speed=0.6):
-        self.left.forward(speed)
-        self.right.forward(speed)
+        self.in1.on()
+        self.in2.off()
+        self.in3.on()
+        self.in4.off()
+        self.ena.value = speed
+        self.enb.value = speed
 
     def backward(self, speed=0.6):
-        self.left.backward(speed)
-        self.right.backward(speed)
+        self.in1.off()
+        self.in2.on()
+        self.in3.off()
+        self.in4.on()
+        self.ena.value = speed
+        self.enb.value = speed
 
     def turn_left(self, speed=0.6):
         # Skid steer: left backward, right forward
-        self.left.backward(speed)
-        self.right.forward(speed)
+        self.in1.off()
+        self.in2.on()
+        self.in3.on()
+        self.in4.off()
+        self.ena.value = speed
+        self.enb.value = speed
 
     def turn_right(self, speed=0.6):
         # Skid steer: left forward, right backward
-        self.left.forward(speed)
-        self.right.backward(speed)
+        self.in1.on()
+        self.in2.off()
+        self.in3.off()
+        self.in4.on()
+        self.ena.value = speed
+        self.enb.value = speed
 
     def cleanup(self):
         self.stop()
