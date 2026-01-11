@@ -5,9 +5,10 @@ import numpy as np
 # Distance thresholds (in meters)
 STOP_DISTANCE = 1.0  # Stop if object closer than this
 WARN_DISTANCE = 2.0  # Warn/steer if object closer than this
-FRONT_BLOCK_DISTANCE = 1.0
-FRONT_CLEAR_DISTANCE = 1.6
+FRONT_BLOCK_DISTANCE = 1.5
+FRONT_CLEAR_DISTANCE = 2.0
 FRONT_FAR_IGNORE_DISTANCE = 2.5
+FRONT_MIN_AREA = 0.001
 
 
 def calculate_risk_score(objects):
@@ -37,24 +38,36 @@ def filter_objects_by_distance(objects, max_distance):
     return [obj for obj in objects if obj[0] <= max_distance]
 
 
+def filter_front_objects(objects, max_distance, min_area):
+    return [obj for obj in objects if obj[0] <= max_distance and obj[1] >= min_area]
+
+
 def middle_blocked(middle_objects, threshold=FRONT_BLOCK_DISTANCE):
     if not middle_objects:
         return False
-    return min(obj[0] for obj in middle_objects) <= threshold
+    candidates = filter_front_objects(middle_objects, threshold, FRONT_MIN_AREA)
+    if not candidates:
+        return False
+    return min(obj[0] for obj in candidates) <= threshold
 
 
 def middle_clear(middle_objects, threshold=FRONT_CLEAR_DISTANCE):
     if not middle_objects:
         return True
-    return min(obj[0] for obj in middle_objects) > threshold
+    candidates = filter_front_objects(middle_objects, FRONT_FAR_IGNORE_DISTANCE, FRONT_MIN_AREA)
+    if not candidates:
+        return True
+    return min(obj[0] for obj in candidates) > threshold
+
+
 
 
 def choose_avoid_turn(LL_objects, L_objects, M_objects, R_objects, RR_objects, last_turn):
     if not middle_blocked(M_objects):
         return None
 
-    left_objects = filter_objects_by_distance(LL_objects + L_objects, FRONT_FAR_IGNORE_DISTANCE)
-    right_objects = filter_objects_by_distance(R_objects + RR_objects, FRONT_FAR_IGNORE_DISTANCE)
+    left_objects = filter_front_objects(LL_objects + L_objects, FRONT_FAR_IGNORE_DISTANCE, FRONT_MIN_AREA)
+    right_objects = filter_front_objects(R_objects + RR_objects, FRONT_FAR_IGNORE_DISTANCE, FRONT_MIN_AREA)
 
     left_risk, _ = calculate_risk_score(left_objects)
     right_risk, _ = calculate_risk_score(right_objects)
