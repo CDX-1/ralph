@@ -130,6 +130,7 @@ def main():
                     status = "CRITICAL!" if distance_critical else "OK"
                     print(f"YOLO Distance ahead: {distance_ahead:.2f}m [{status}] (area: {area_norm:.4f})")
         
+        current_time = time.time()
         if midas_enabled:
             depth = midas.update(frame)
             
@@ -156,7 +157,10 @@ def main():
                     depth_close_count = 0
                     midas_override_active = False
 
-        current_time = time.time()
+        if action == "STOP" and midas_enabled and depth.get("valid") and not depth.get("close_ahead"):
+            open_dir = depth.get("open_dir", "left")
+            action = "STEER_LEFT" if open_dir == "left" else "STEER_RIGHT"
+            reason = f"MiDaS: center clear, steer {open_dir}"
         
         # Motor control based on action
         if midas_override_active:

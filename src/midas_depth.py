@@ -30,6 +30,7 @@ class MidasDepth:
             "left_v": 0.0,
             "right_v": 0.0,
             "close_ahead": False,
+            "open_dir": "left",
             "turn_dir": "left",
             "timestamp": 0.0,
             "valid": False,
@@ -70,6 +71,8 @@ class MidasDepth:
         right_v = float(np.median(right))
 
         close_ahead = roi_v > self.close_threshold
+        # Lower normalized values indicate farther/clearer space.
+        open_dir = "left" if left_v < right_v else "right"
         turn_dir = "right" if left_v > right_v else "left"
 
         depth_vis = self._create_visualization(dn)
@@ -79,6 +82,7 @@ class MidasDepth:
             "left_v": left_v,
             "right_v": right_v,
             "close_ahead": close_ahead,
+            "open_dir": open_dir,
             "turn_dir": turn_dir,
             "timestamp": time.time(),
             "valid": True,
