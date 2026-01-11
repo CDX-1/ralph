@@ -10,14 +10,11 @@ from ultralytics import YOLO
 
 from vision import (
     compute_turn_and_confidence,
-    choose_avoid_turn,
-    get_side_risk_meta,
-    middle_clear,
+    decide_action,
     load_floor_calibration,
     pixel_to_world,
+    detect_floor_path_line,
 )
-
-AVOID_PATH_BIAS = 0.3
 
 def recv_exact(sock, size):
     data = b""
@@ -30,9 +27,9 @@ def recv_exact(sock, size):
 
 def handle_client(conn, addr, model, H, preview):
     print(f"Client connected: {addr}")
-    last_turn = "LEFT"
+    last_turn = "RIGHT"
     last_time = time.time()
-    avoid_turn = None
+    
     try:
         while True:
             header = recv_exact(conn, 4)
@@ -51,7 +48,14 @@ def handle_client(conn, addr, model, H, preview):
 
             h, w, _ = frame.shape
             fifth = w // 5
-            path_bias = 0.0
+
+            # Detect floor path line for desired direction
+            _, origin, target = detect_floor_path_line(frame)
+            desired_turn = None
+            if origin and target:
+                dx = target[0] - origin[0]
+                if abs(dx) > w * 0.05:  # 5% threshold
+                    desired_turn = "LEFT" if dx < 0 else "RIGHT"
 
             results = model(frame, verbose=False)[0]
 
@@ -80,6 +84,7 @@ def handle_client(conn, addr, model, H, preview):
                 box_area = box_width * box_height
                 box_area_normalized = box_area / frame_area
 
+                # Use bottom center of box for distance measurement
                 bx = max(0, min(cx, w - 1))
                 by = max(0, min(y2, h - 1))
 
@@ -108,33 +113,19 @@ def handle_client(conn, addr, model, H, preview):
                         2,
                     )
 
-            if avoid_turn is None:
-                avoid_turn = choose_avoid_turn(
-                    ll_objects,
-                    l_objects,
-                    middle_objects,
-                    r_objects,
-                    rr_objects,
-                    last_turn,
-                )
-            else:
-                if middle_clear(middle_objects):
-                    avoid_turn = None
+            # Use the full decision logic instead of simplified version
+            action, last_turn, risk_meta = decide_action(
+                ll_objects,
+                l_objects,
+                middle_objects,
+                r_objects,
+                rr_objects,
+                last_turn,
+                desired_turn,
+                verbose=preview  # Print debug info when preview is on
+            )
 
-            if avoid_turn is not None:
-                path_bias = -AVOID_PATH_BIAS if avoid_turn == "LEFT" else AVOID_PATH_BIAS
-
-            if avoid_turn == "LEFT":
-                action = "STEER_LEFT"
-                last_turn = "LEFT"
-            elif avoid_turn == "RIGHT":
-                action = "STEER_RIGHT"
-                last_turn = "RIGHT"
-            else:
-                action = "FORWARD"
-
-            risk_meta = get_side_risk_meta(ll_objects, l_objects, r_objects, rr_objects)
-            turn, confidence = compute_turn_and_confidence(action, risk_meta, path_bias)
+            turn, confidence = compute_turn_and_confidence(action, risk_meta, 0.0)
 
             now = time.time()
             fps = 1.0 / max(1e-6, now - last_time)
@@ -149,11 +140,18 @@ def handle_client(conn, addr, model, H, preview):
             conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
 
             if preview:
+                # Draw region boundaries
                 cv2.line(frame, (fifth, 0), (fifth, h), (255, 255, 255), 2)
                 cv2.line(frame, (2 * fifth, 0), (2 * fifth, h), (255, 255, 255), 2)
                 cv2.line(frame, (3 * fifth, 0), (3 * fifth, h), (255, 255, 255), 2)
                 cv2.line(frame, (4 * fifth, 0), (4 * fifth, h), (255, 255, 255), 2)
 
+                # Draw path line
+                if origin and target:
+                    cv2.line(frame, origin, target, (255, 0, 255), 3)
+                    cv2.circle(frame, target, 8, (255, 0, 255), -1)
+
+                # Show distances per region
                 LL_dist = min([obj[0] for obj in ll_objects]) if ll_objects else None
                 L_dist = min([obj[0] for obj in l_objects]) if l_objects else None
                 M_dist = min([obj[0] for obj in middle_objects]) if middle_objects else None
@@ -165,9 +163,10 @@ def handle_client(conn, addr, model, H, preview):
                 dist_info += f" M:{M_dist:.1f}" if M_dist else " M:--"
                 dist_info += f" R:{R_dist:.1f}" if R_dist else " R:--"
                 dist_info += f" RR:{RR_dist:.1f}" if RR_dist else " RR:--"
+                
                 cv2.putText(
                     frame,
-                    f"{dist_info} FPS:{fps:.1f}",
+                    f"{dist_info}",
                     (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,

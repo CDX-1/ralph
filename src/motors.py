@@ -89,5 +89,5 @@ if __name__ == "__main__":
     print("Motor controller test")
     motors = MotorController()
     motors.forward()
-    time.sleep(3)
+    time.sleep(100)
     motors.stop()
