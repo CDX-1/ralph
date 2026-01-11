@@ -129,6 +129,18 @@ def handle_client(conn: socket.socket, addr, model: YOLO, midas):
                 action = "STOP"
                 reason = f"Obstacle within {STOP_DISTANCE_M:.2f}m"
 
+            if midas:
+                depth = midas.update(frame)
+                if depth["valid"] and depth.get("close_ahead"):
+                    action = "STOP"
+                    reason = "MiDaS: close obstacle ahead"
+                if SHOW_WINDOW and depth["valid"] and depth["depth_vis"] is not None:
+                    cv2.imshow("MiDaS Depth Map (Mac)", depth["depth_vis"])
+
+            if action not in ("GO", "STOP"):
+                action = "GO"
+                reason = "Go (turning disabled)"
+
             response = {
                 "action": action,
                 "reason": reason,
@@ -143,15 +155,6 @@ def handle_client(conn: socket.socket, addr, model: YOLO, midas):
             if SHOW_WINDOW:
                 frame = draw_overlays(frame, overlays, action, reason, yolo_fps)
                 cv2.imshow("RPI Stream (YOLO on Mac)", frame)
-
-                if midas:
-                    depth = midas.update(frame)
-                    if depth["valid"] and depth.get("close_ahead"):
-                        action = "STOP"
-                        reason = "MiDaS: close obstacle ahead"
-                    if depth["valid"] and depth["depth_vis"] is not None:
-                        cv2.imshow("MiDaS Depth Map (Mac)", depth["depth_vis"])
-
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
     except ConnectionError:

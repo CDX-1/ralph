@@ -35,36 +35,36 @@ class MotorController:
         self.in4.off()
 
     def forward(self, speed=0.6):
-        self.in1.on()
-        self.in2.off()
-        self.in3.on()
-        self.in4.off()
-        self.ena.value = speed
-        self.enb.value = speed
-
-    def backward(self, speed=0.6):
         self.in1.off()
         self.in2.on()
         self.in3.off()
         self.in4.on()
+        self.ena.value = speed
+        self.enb.value = speed
+
+    def backward(self, speed=0.6):
+        self.in1.on()
+        self.in2.off()
+        self.in3.on()
+        self.in4.off()
         self.ena.value = speed
         self.enb.value = speed
 
     def turn_left(self, speed=0.6):
         # Skid steer: left backward, right forward
-        self.in1.off()
-        self.in2.on()
-        self.in3.on()
-        self.in4.off()
+        self.in1.on()
+        self.in2.off()
+        self.in3.off()
+        self.in4.on()
         self.ena.value = speed
         self.enb.value = speed
 
     def turn_right(self, speed=0.6):
         # Skid steer: left forward, right backward
-        self.in1.on()
-        self.in2.off()
-        self.in3.off()
-        self.in4.on()
+        self.in1.off()
+        self.in2.on()
+        self.in3.on()
+        self.in4.off()
         self.ena.value = speed
         self.enb.value = speed
 
