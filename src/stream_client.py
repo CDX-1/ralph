@@ -20,7 +20,7 @@ def send_frame(sock, frame, jpeg_quality):
     return True
 
 
-TURN_SPEED = 0.5
+TURN_SPEED = 1
 
 
 def main():
