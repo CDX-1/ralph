@@ -12,10 +12,16 @@ from camera import get_camera_index
 from audio import AudioManager
 from spatial import decide_action, draw_overlays
 from midas_depth import MidasDepth
+from motor_controller import MotorController
 
 
 def main():
     audio = AudioManager()
+    
+    # Initialize motor controller
+    print("\nInitializing motor controller...")
+    motors = MotorController(default_speed=70)
+    print("Press 'q' to quit")
     
     print("\nInitializing MiDaS depth estimation...")
     print("This may take a few minutes on first run (downloading ~25MB model)")
@@ -152,6 +158,33 @@ def main():
 
         current_time = time.time()
         
+        # Motor control based on action
+        if midas_override_active:
+            # MiDaS override - stop and turn
+            motors.stop()
+            time.sleep(0.2)
+            if depth.get('turn_dir') == 'left':
+                motors.turn_left()
+            else:
+                motors.turn_right()
+            time.sleep(0.3)
+            motors.stop()
+        elif distance_critical:
+            # Critical distance - stop immediately
+            motors.stop()
+        elif action == "STOP":
+            motors.stop()
+        elif action == "GO":
+            motors.forward()
+        elif action == "STEER_LEFT":
+            motors.pivot_left()
+        elif action == "STEER_RIGHT":
+            motors.pivot_right()
+        elif action == "WARN":
+            # Slow down but keep moving
+            motors.forward(speed=40)
+        
+        # Audio feedback
         if audio.enabled and not midas_override_active:
             if distance_critical and 'STOP' in audio.audio_files:
                 audio.play('STOP')
@@ -189,6 +222,8 @@ def main():
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
+            print("\nShutting down...")
+            motors.stop()
             break
         elif key == ord("c") and midas_enabled:
             print("\n" + "="*50)
@@ -216,6 +251,7 @@ def main():
                 print(f"\nUpdate: MidasDepth(close_threshold={recommended:.4f})")
                 print("="*50 + "\n")
 
+    motors.cleanup()
     cap.release()
     cv2.destroyAllWindows()
 
