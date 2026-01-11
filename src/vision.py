@@ -5,10 +5,10 @@ import numpy as np
 # Distance thresholds (in meters)
 STOP_DISTANCE = 1.0  # Stop if object closer than this
 WARN_DISTANCE = 2.0  # Warn/steer if object closer than this
-FRONT_BLOCK_DISTANCE = 1.5
-FRONT_CLEAR_DISTANCE = 2.0
+FRONT_BLOCK_DISTANCE = 2.0
+FRONT_CLEAR_DISTANCE = 2.4
 FRONT_FAR_IGNORE_DISTANCE = 2.5
-FRONT_MIN_AREA = 0.001
+FRONT_MIN_AREA = 0.0
 
 
 def calculate_risk_score(objects):
@@ -45,10 +45,7 @@ def filter_front_objects(objects, max_distance, min_area):
 def middle_blocked(middle_objects, threshold=FRONT_BLOCK_DISTANCE):
     if not middle_objects:
         return False
-    candidates = filter_front_objects(middle_objects, threshold, FRONT_MIN_AREA)
-    if not candidates:
-        return False
-    return min(obj[0] for obj in candidates) <= threshold
+    return min(obj[0] for obj in middle_objects) <= threshold
 
 
 def middle_clear(middle_objects, threshold=FRONT_CLEAR_DISTANCE):
