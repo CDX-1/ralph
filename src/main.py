@@ -34,7 +34,7 @@ def main():
         midas = MidasDepth(
             device="cpu",
             input_size=(384, 216),
-            close_threshold=0.65,
+            close_threshold=0.5,
             run_every_n_frames=4
         )
         midas_enabled = True
