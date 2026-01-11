@@ -20,6 +20,9 @@ def send_frame(sock, frame, jpeg_quality):
     return True
 
 
+TURN_SPEED = 0.35
+
+
 def main():
     parser = argparse.ArgumentParser(description="Stream camera frames to server and print actions.")
     parser.add_argument("--host", default="127.0.0.1")
@@ -118,9 +121,9 @@ def main():
                     elif best_action == "FORWARD":
                         motors.forward(speed=max(0.3, speed))
                     elif best_action == "STEER_LEFT":
-                        motors.turn_left(speed=max(0.3, speed))
+                        motors.turn_left(speed=TURN_SPEED)
                     elif best_action == "STEER_RIGHT":
-                        motors.turn_right(speed=max(0.3, speed))
+                        motors.turn_right(speed=TURN_SPEED)
 
                 action_stats = {}
                 bucket_start = now
