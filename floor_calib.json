@@ -1,0 +1,28 @@
+{
+  "img_pts": [
+    [
+      96,
+      1040
+    ],
+    [
+      1789,
+      1048
+    ],
+    [
+      1792,
+      754
+    ],
+    [
+      215,
+      769
+    ]
+  ],
+  "width_m": 1.5,
+  "length_m": 1.1,
+  "order": [
+    "near-left",
+    "near-right",
+    "far-right",
+    "far-left"
+  ]
+}
