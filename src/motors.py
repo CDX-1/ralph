@@ -6,7 +6,7 @@ except Exception:
 
 import time
 
-b_multi = 1.5
+b_multi = 1.0
 
 class MotorController:
     def __init__(
