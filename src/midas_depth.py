@@ -61,9 +61,9 @@ class MidasDepth:
 
         h, w = dn.shape
 
-        center = dn[int(0.55*h):int(0.85*h), int(0.35*w):int(0.65*w)]
-        left   = dn[int(0.55*h):int(0.85*h), int(0.05*w):int(0.45*w)]
-        right  = dn[int(0.55*h):int(0.85*h), int(0.55*w):int(0.95*w)]
+        center = dn[int(0.50*h):int(0.80*h), int(0.35*w):int(0.65*w)]
+        left   = dn[int(0.50*h):int(0.80*h), int(0.05*w):int(0.45*w)]
+        right  = dn[int(0.50*h):int(0.80*h), int(0.55*w):int(0.95*w)]
 
         roi_v = float(np.median(center))
         left_v = float(np.median(left))
@@ -105,7 +105,7 @@ class MidasDepth:
         dn = np.clip((depth - dmin) / (dmax - dmin + 1e-6), 0, 1)
 
         h, w = dn.shape
-        center = dn[int(0.55*h):int(0.85*h), int(0.35*w):int(0.65*w)]
+        center = dn[int(0.50*h):int(0.80*h), int(0.35*w):int(0.65*w)]
         return float(np.median(center))
     
     def _create_visualization(self, depth_normalized):
@@ -114,24 +114,24 @@ class MidasDepth:
         h, w = depth_normalized.shape
         
         cv2.rectangle(depth_colored, 
-                     (int(0.35*w), int(0.55*h)), 
-                     (int(0.65*w), int(0.85*h)), 
+                     (int(0.35*w), int(0.50*h)), 
+                     (int(0.65*w), int(0.80*h)), 
                      (0, 0, 255), 2)
-        cv2.putText(depth_colored, "CENTER", (int(0.38*w), int(0.52*h)), 
+        cv2.putText(depth_colored, "CENTER", (int(0.38*w), int(0.47*h)), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
         
         cv2.rectangle(depth_colored, 
-                     (int(0.05*w), int(0.55*h)), 
-                     (int(0.45*w), int(0.85*h)), 
+                     (int(0.05*w), int(0.50*h)), 
+                     (int(0.45*w), int(0.80*h)), 
                      (0, 255, 0), 2)
-        cv2.putText(depth_colored, "LEFT", (int(0.08*w), int(0.52*h)), 
+        cv2.putText(depth_colored, "LEFT", (int(0.08*w), int(0.47*h)), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
         
         cv2.rectangle(depth_colored, 
-                     (int(0.55*w), int(0.55*h)), 
-                     (int(0.95*w), int(0.85*h)), 
+                     (int(0.55*w), int(0.50*h)), 
+                     (int(0.95*w), int(0.80*h)), 
                      (255, 0, 0), 2)
-        cv2.putText(depth_colored, "RIGHT", (int(0.58*w), int(0.52*h)), 
+        cv2.putText(depth_colored, "RIGHT", (int(0.58*w), int(0.47*h)), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
         
         threshold_text = f"Threshold: {self.close_threshold:.2f}"
