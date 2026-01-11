@@ -12,6 +12,8 @@ from vision import (
     compute_turn_and_confidence,
     decide_action,
     detect_floor_path_line,
+    choose_avoid_turn,
+    middle_clear,
     load_floor_calibration,
     pixel_to_world,
 )
@@ -23,6 +25,7 @@ SEARCH_TOGGLE_SEC = 2.0
 PATH_BIAS_SCALE = 0.6
 TURN_DEADBAND = 0.08
 SEARCH_BIAS = 0.25
+AVOID_PATH_BIAS = 0.3
 
 def recv_exact(sock, size):
     data = b""
@@ -44,6 +47,7 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
     last_progress_time = 0.0
     last_progress_y = None
     prev_gray = None
+    avoid_turn = None
     search_dir = "LEFT"
     last_search_toggle = time.time()
     try:
@@ -189,6 +193,23 @@ def handle_client(conn, addr, model, H, far_left, far_right, preview):
                         (0, 255, 0),
                         2,
                     )
+
+            if avoid_turn is None:
+                avoid_turn = choose_avoid_turn(
+                    ll_objects,
+                    l_objects,
+                    middle_objects,
+                    r_objects,
+                    rr_objects,
+                    last_turn,
+                )
+            else:
+                if middle_clear(middle_objects):
+                    avoid_turn = None
+
+            if avoid_turn is not None:
+                desired_turn = avoid_turn
+                path_bias = -AVOID_PATH_BIAS if avoid_turn == "LEFT" else AVOID_PATH_BIAS
 
             action, last_turn, risk_meta = decide_action(
                 ll_objects,
