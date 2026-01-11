@@ -67,6 +67,14 @@ def main():
     midas_override_active = False
 
     last_results = None
+    last_move_time = time.time()
+    escape_phase = None
+    escape_until = 0.0
+    escape_dir = "left"
+    last_escape_dir = "right"
+    stop_timeout = 0.7
+    escape_turn_time = 0.35
+    escape_forward_time = 0.45
 
     while True:
         ret, frame = cap.read()
@@ -161,9 +169,53 @@ def main():
             open_dir = depth.get("open_dir", "left")
             action = "STEER_LEFT" if open_dir == "left" else "STEER_RIGHT"
             reason = f"MiDaS: center clear, steer {open_dir}"
-        
+
+        blocked = midas_override_active or distance_critical or action == "STOP"
+        moving_action = action in ("GO", "STEER_LEFT", "STEER_RIGHT", "WARN")
+        if moving_action and not blocked:
+            last_move_time = current_time
+
+        escape_active = False
+        if escape_phase and current_time >= escape_until:
+            if escape_phase == "TURN":
+                escape_phase = "FORWARD"
+                escape_until = current_time + escape_forward_time
+            else:
+                escape_phase = None
+
+        if escape_phase:
+            escape_active = True
+            if escape_phase == "TURN":
+                action = "ESCAPE_TURN_LEFT" if escape_dir == "left" else "ESCAPE_TURN_RIGHT"
+                reason = f"Recovery turn {escape_dir}"
+            else:
+                action = "ESCAPE_FORWARD"
+                reason = "Recovery forward"
+                last_move_time = current_time
+
+        if not escape_phase and blocked and (current_time - last_move_time) > stop_timeout:
+            if midas_enabled and depth.get("valid"):
+                escape_dir = depth.get("open_dir", "left")
+            else:
+                escape_dir = "left" if last_escape_dir == "right" else "right"
+            last_escape_dir = escape_dir
+            escape_phase = "TURN"
+            escape_until = current_time + escape_turn_time
+            escape_active = True
+            action = "ESCAPE_TURN_LEFT" if escape_dir == "left" else "ESCAPE_TURN_RIGHT"
+            reason = f"Recovery turn {escape_dir}"
+            last_move_time = current_time
+
         # Motor control based on action
-        if midas_override_active:
+        if escape_active:
+            if escape_phase == "TURN":
+                if escape_dir == "left":
+                    motors.turn_left()
+                else:
+                    motors.turn_right()
+            else:
+                motors.forward(speed=50)
+        elif midas_override_active:
             # MiDaS override - stop and turn
             motors.stop()
             time.sleep(0.2)
